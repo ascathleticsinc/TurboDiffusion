@@ -4,7 +4,7 @@
 <img src=assets/TurboDiffusion_Logo.png width="30%"/>
 </div>
 
-This repository provides the official implementation of **TurboDiffusion**, a video generation acceleration framework that can speed up end-to-end diffusion generation by $100 \sim 205\times$ on a single RTX 5090, while maintaining video quality. Currently, this repository contains the model checkpoints and inference code. The training code will be released in the future.
+This repository provides the official implementation of **TurboDiffusion**, a video generation acceleration framework that can speed up end-to-end diffusion generation by $100 \sim 205\times$ on a single RTX 5090, while maintaining video quality.
 
 
 Paper: [TurboDiffusion: Accelerating Video Diffusion Models by 100--205 Times](https://jt-zhang.github.io/files/TurboDiffusion_Technical_Report.pdf)
@@ -516,12 +516,78 @@ We evaluate video generation on **a single RTX 5090 GPU**. The E2E Time refers t
 </tr>
 </table>
 
+## Training
+
+In this repo, we provide training code based on Wan2.1 and its synthetic data. The training builds on the rCM codebase (https://github.com/NVlabs/rcm), with infrastructure support including FSDP2, Ulysses CP, and selective activation checkpointing (SAC). For rCM training instructions, please refer to the original rCM repository; SLA training guidance is provided here.
+
+#### Checkpoints Downloading
+Download the Wan2.1 pretrained checkpoints in `.pth` format and VAE/text encoder to `assets/checkpoints`:
+
+```bash
+# make sure git lfs is installed
+git clone https://huggingface.co/worstcoder/Wan assets/checkpoints
+```
+
+FSDP2 relies on [Distributed Checkpoint (DCP)](https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html) for loading and saving checkpoints. Before training, convert `.pth` teacher checkpoints to `.dcp` first:
+
+```bash
+python -m torch.distributed.checkpoint.format_utils torch_to_dcp assets/checkpoints/Wan2.1-T2V-1.3B.pth assets/checkpoints/Wan2.1-T2V-1.3B.dcp
+```
+
+After training, the saved `.dcp` checkpoints can be converted to `.pth` using the script `scripts/dcp_to_pth.py`.
+
+#### Dataset Downloading
+
+We provide Wan2.1-14B-synthesized datasets. Download to `assets/datasets` using:
+
+```bash
+# make sure git lfs is installed
+git clone https://huggingface.co/datasets/worstcoder/Wan_datasets assets/datasets
+```
+
+#### Start Training
+We implement white-box SLA training by aligning the predictions of the SLA-enabled model with those of the full-attention pretrained model. Unlike black-box training, which tunes the pretrained model using diffusion loss, white-box training mitigates distribution shift and is less sensitive to the training data.
+
+Single-node training example:
+
+```bash
+WORKDIR="/your/path/to/turbodiffusion"
+cd $WORKDIR
+export PYTHONPATH=turbodiffusion
+
+# the "IMAGINAIRE_OUTPUT_ROOT" environment variable is the path to save experiment output files
+export IMAGINAIRE_OUTPUT_ROOT=${WORKDIR}/outputs
+CHECKPOINT_ROOT=${WORKDIR}/assets/checkpoints
+DATASET_ROOT=${WORKDIR}/assets/datasets/Wan2.1_14B_480p_16:9_Euler-step100_shift-3.0_cfg-5.0_seed-0_250K
+
+# your Wandb information
+export WANDB_API_KEY=xxx
+export WANDB_ENTITY=xxx
+
+registry=registry_sla
+experiment=wan2pt1_1pt3B_res480p_t2v_SLA
+
+torchrun --nproc_per_node=8 \
+    -m scripts.train --config=rcm/configs/${registry}.py -- experiment=${experiment} \
+        model.config.teacher_ckpt=${CHECKPOINT_ROOT}/Wan2.1-T2V-1.3B.dcp \
+        model.config.tokenizer.vae_pth=${CHECKPOINT_ROOT}/Wan2.1_VAE.pth \
+        model.config.text_encoder_path=${CHECKPOINT_ROOT}/models_t5_umt5-xxl-enc-bf16.pth \
+        model.config.neg_embed_path=${CHECKPOINT_ROOT}/umT5_wan_negative_emb.pt \
+        dataloader_train.tar_path_pattern=${DATASET_ROOT}/shard*.tar
+```
+
+Please refer to `turbodiffusion/rcm/configs/experiments/sla/wan2pt1_t2v.py` for the 14B config or perform modifications as needed.
+
+#### Model Merging
+
+The parameter updates from SLA training can be merged into rCM checkpoints using `turbodiffusion/scripts/merge_models.py`, enabling rCM to perform sparse attention inference.
 
 ## Roadmap
 
 We're actively working on the following features and improvements:
 
 - [ ] Organize and release training code
+- [ ] Optimize infrastructure for better parallel
 - [ ] vLLM-Omni integration
 - [ ] Support for more video generation models
 - [ ] Support for autoregressive video generation models
@@ -575,16 +641,3 @@ We welcome community members to help maintain and extend TurboDiffusion. We appr
   year={2025}
 }
 ```
-
-<!-- @article{zhang2025sageattention2++,
-  title={Sageattention2++: A more efficient implementation of sageattention2},
-  author={Zhang, Jintao and Xu, Xiaoming and Wei, Jia and Huang, Haofeng and Zhang, Pengle and Xiang, Chendong and Zhu, Jun and Chen, Jianfei},
-  journal={arXiv preprint arXiv:2505.21136},
-  year={2025}
-}
-@article{zhang2025sageattention3,
-  title={SageAttention3: Microscaling FP4 Attention for Inference and An Exploration of 8-Bit Training},
-  author={Zhang, Jintao and Wei, Jia and Zhang, Pengle and Xu, Xiaoming and Huang, Haofeng and Wang, Haoxu and Jiang, Kai and Zhu, Jun and Chen, Jianfei},
-  journal={arXiv preprint arXiv:2505.11594},
-  year={2025}
-} -->

@@ -56,7 +56,7 @@ from rcm.configs.defaults.ema import EMAConfig
 from rcm.samplers.euler import FlowEulerSampler
 from rcm.samplers.unipc import FlowUniPCMultistepSampler
 from rcm.networks.wan2pt1 import WanSelfAttention
-from inf_lib.SLA import SparseLinearAttention
+from SLA import SparseLinearAttention
 
 torch._dynamo.config.suppress_errors = True
 
@@ -67,7 +67,7 @@ IS_PROCESSED_KEY = "is_processed"
 def replace_attention_with_sla(model: torch.nn.Module, sla_topk: float):
     for module in model.modules():
         if type(module) is WanSelfAttention:
-            module.attn_op.local_attn = SparseLinearAttention(head_dim=module.head_dim, topk=sla_topk, BLKQ=128, BLKK=64)
+            module.attn_op.local_attn = SparseLinearAttention(head_dim=module.head_dim, topk=sla_topk)
 
 
 @dataclass
@@ -297,12 +297,6 @@ class T2VModel_SLA(ImaginaireModel):
 
     def draw_training_time(self, x0_size: int, condition: Any) -> torch.Tensor:
         batch_size = x0_size[0]
-        # if self.timestep_shift > 0:
-        #     sigma_B = torch.rand(batch_size).to(device="cuda").double()
-        #     sigma_B = self.timestep_shift * sigma_B / (1 + (self.timestep_shift - 1) * sigma_B)
-        #     sigma_B_1 = rearrange(sigma_B, "b -> b 1")
-        #     time_B_1 = torch.arctan(sigma_B_1 / (1 - sigma_B_1))
-        #     return time_B_1
         sigma_B = self.p_t(batch_size).to(device="cuda")
         sigma_B_1 = rearrange(sigma_B, "b -> b 1")  # add a dimension for T, all frames share the same sigma
         is_video_batch = condition.data_type == DataType.VIDEO
