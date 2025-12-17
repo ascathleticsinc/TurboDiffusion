@@ -5,8 +5,7 @@
 </div>
 
 This repository provides the official implementation of **TurboDiffusion**, a video generation acceleration framework that can speed up end-to-end diffusion generation by $100 \sim 205\times$ on a single RTX 5090, while maintaining video quality.   
-TurboDiffusion primarily uses [SageAttention](https://github.com/thu-ml/SageAttention), [SLA (Sparse-Linear Attention)](https://github.com/thu-ml/SLA), and [rCM](https://github.com/NVlabs/rcm).
-
+TurboDiffusion primarily uses [SageAttention](https://github.com/thu-ml/SageAttention), [SLA (Sparse-Linear Attention)](https://github.com/thu-ml/SLA) for attention acceleration, and [rCM](https://github.com/NVlabs/rcm) for timestep distillation.
 
 Paper: [TurboDiffusion: Accelerating Video Diffusion Models by 100--205 Times](https://jt-zhang.github.io/files/TurboDiffusion_Technical_Report.pdf)
 
@@ -67,7 +66,7 @@ git submodule update --init --recursive
 pip install -e . --no-build-isolation
 ```
 
-To enable **SageSLA**, a very fast [SLA (Sparse-Linear Attention)](https://github.com/thu-ml/SLA) forward pass based on [SageAttention](https://github.com/thu-ml/SageAttention), install [SpargeAttn](https://github.com/thu-ml/SpargeAttn) first:
+To enable SageSLA, a fast SLA forward pass based on SageAttention, install [SpargeAttn](https://github.com/thu-ml/SpargeAttn) first:
 
 ```bash
 pip install git+https://github.com/thu-ml/SpargeAttn.git --no-build-isolation
@@ -76,7 +75,7 @@ pip install git+https://github.com/thu-ml/SpargeAttn.git --no-build-isolation
 ## Inference
 For GPUs with more than 40GB of GPU memory, **e.g., H100, we recommend using the unquantized checkpoint (without `-quant`) and removing `--quant_linear` from the command.**
 
-1.  Download the Wan VAE and umT5 text encoder checkpoints from the official [Wan](https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B) repository on Huggingface:
+1.  Download the Wan2.1 VAE and umT5 text encoder checkpoints from the official [Wan2.1](https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B) repository on Huggingface:
 
     ```bash
     mkdir checkpoints
