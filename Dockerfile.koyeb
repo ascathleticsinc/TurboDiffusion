@@ -1,0 +1,65 @@
+# Use NVIDIA CUDA base image
+FROM nvidia/cuda:12.1.0-cudnn8-devel-ubuntu22.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
+# Install system dependencies and Python 3.10
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3.10-dev \
+    python3-pip \
+    git \
+    wget \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set Python 3.10 as default
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1 && \
+    update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1
+
+# Upgrade pip
+RUN python3 -m pip install --upgrade pip setuptools wheel
+
+# Set working directory
+WORKDIR /app
+
+# Copy the TurboDiffusion repository
+COPY . /app/
+
+# Install PyTorch 2.8.0 with CUDA support
+RUN pip install --no-cache-dir torch==2.8.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# Install TurboDiffusion from the current directory
+RUN pip install --no-cache-dir -e . --no-build-isolation
+
+# Install FastAPI and web dependencies
+RUN pip install --no-cache-dir fastapi uvicorn python-multipart aiofiles pillow
+
+# Create necessary directories
+RUN mkdir -p /app/checkpoints /app/output
+
+# Download checkpoints at build time
+RUN cd /app/checkpoints && \
+    echo "Downloading model checkpoints..." && \
+    wget -q --show-progress --timeout=300 --tries=3 \
+        https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B/resolve/main/Wan2.1_VAE.pth || echo "VAE download failed, will retry at runtime" && \
+    wget -q --show-progress --timeout=300 --tries=3 \
+        https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B/resolve/main/models_t5_umt5-xxl-enc-bf16.pth || echo "Text encoder download failed, will retry at runtime"
+
+# Expose port
+EXPOSE 8000
+
+# Set PYTHONPATH
+ENV PYTHONPATH=/app:$PYTHONPATH
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10m --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Default command (can be overridden)
+CMD ["python3", "-m", "turbodiffusion.inference.wan2_2_i2v_infer", "--help"]
