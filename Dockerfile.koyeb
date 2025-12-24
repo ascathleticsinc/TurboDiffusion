@@ -43,13 +43,6 @@ RUN pip install --no-cache-dir fastapi uvicorn python-multipart aiofiles pillow
 # Create necessary directories
 RUN mkdir -p /app/checkpoints /app/output
 
-# Download checkpoints at build time
-RUN cd /app/checkpoints && \
-    echo "Downloading model checkpoints..." && \
-    wget -q --show-progress --timeout=300 --tries=3 \
-        https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B/resolve/main/Wan2.1_VAE.pth || echo "VAE download failed, will retry at runtime" && \
-    wget -q --show-progress --timeout=300 --tries=3 \
-        https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B/resolve/main/models_t5_umt5-xxl-enc-bf16.pth || echo "Text encoder download failed, will retry at runtime"
 
 # Expose port
 EXPOSE 8000
