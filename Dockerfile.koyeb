@@ -31,8 +31,8 @@ WORKDIR /app
 # Copy the TurboDiffusion repository
 COPY . /app/
 
-# Install PyTorch 2.8.0 with CUDA support
-RUN pip install --no-cache-dir torch==2.8.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+# Install PyTorch 2.5.1 with CUDA support
+RUN pip install --no-cache-dir torch==2.5.1 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
 # Install TurboDiffusion from the current directory
 RUN pip install --no-cache-dir -e . --no-build-isolation
